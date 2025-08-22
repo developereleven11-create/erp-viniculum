@@ -12,8 +12,8 @@
 // - Tries v1/shipmentDetail first, then v4/status
 // - Returns first success; otherwise returns a compact debug report of every attempt.
 
-const V1_URL = "https://erp.vineretail.com/RestWS/api/eretail/v1/order/shipmentDetail";
-const V4_URL = "https://erp.vineretail.com/RestWS/api/eretail/v4/order/status";
+const V1_URL = "https://pokonut.vineretail.com/RestWS/api/eretail/v1/order/orderShip";
+// const V4_URL = "https://erp.vineretail.com/RestWS/api/eretail/v4/order/status";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
