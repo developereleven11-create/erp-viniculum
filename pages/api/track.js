@@ -1,7 +1,7 @@
 // pages/api/track.js
 // Accepts:
-//  - POST JSON: { "orderNumber": "4105939108DC" }  ← preferred
-//  - GET  query: ?orderNumber=4105939108DC
+//  - POST JSON: { "orderNumber": "NWB110755" }  ← preferred
+//  - GET  query: ?orderNumber=NWB110755
 //
 // Vercel Env Vars (Project → Settings → Environment Variables):
 //  VINICULUM_API_KEY      = <your key>         (required)
@@ -9,11 +9,11 @@
 //  VINICULUM_ORG_ID       = <optional>         (only if your tenant requires it)
 //  VINICULUM_CLIENT_CODE  = <optional>         (only if your tenant requires it)
 
-const URL = "https://pokonut.vineretail.com/RestWS/api/eretail/v1/order/shipmentDetail";
+const URL = "https://pokonut.vineretail.com/RestWS/api/eretail/v1/order/statusUpdate";
 
 export default async function handler(req, res) {
   try {
-    if (!["POST","GET"].includes(req.method)) {
+    if (!["POST", "GET"].includes(req.method)) {
       res.setHeader("Allow", "POST, GET");
       return res.status(405).json({ error: "Use POST or GET." });
     }
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     if (!orderNumber) {
       return res.status(400).json({
         error: "Missing 'orderNumber' (string).",
-        hint: "Send { orderNumber: '4105939108DC' } in POST JSON, or use ?orderNumber=4105939108DC"
+        hint: "Send { orderNumber: 'NWB110755' } in POST JSON, or use ?orderNumber=NWB110755"
       });
     }
 
@@ -51,82 +51,83 @@ export default async function handler(req, res) {
       ...(clientCode ? { ClientCode: clientCode } : {})
     };
 
-    // EXACT body per Viniculum docs for this endpoint
-    const payload = { orderNo: orderNumber };
-
-    const upstream = await fetch(URL, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload)
-    });
-
-    const raw = await upstream.text();
-    let data; try { data = JSON.parse(raw); } catch { data = { raw }; }
-
-    if (!upstream.ok) {
-      return res.status(upstream.status).json({ error: "Upstream HTTP error", details: data });
-    }
-
-    // Viniculum success convention: responseCode === 0
-    if (typeof data.responseCode !== "undefined" && Number(data.responseCode) !== 0) {
-      return res.status(400).json({
-        error: data?.responseMessage || "Rejected by Viniculum",
-        details: data,
-        sent: { url: URL, headers: Object.keys(headers), payload }
-      });
-    }
-
-    // ---- Normalize for your UI ----
-    const order = Array.isArray(data?.orders) && data.orders.length ? data.orders[0] : null;
-    const ship  = order && Array.isArray(order.shipDetail) && order.shipDetail.length ? order.shipDetail[0] : null;
-
-    // Build timeline
-    const events = [];
-    if (ship) {
-      if (ship.allocation_date) events.push({ date: ship.allocation_date, status: "Allocated" });
-      if (ship.pick_date)      events.push({ date: ship.pick_date,      status: "Picked" });
-      if (ship.pack_date)      events.push({ date: ship.pack_date,      status: "Packed" });
-      if (ship.shipdate)       events.push({ date: ship.shipdate,       status: "Shipped" });
-      if (ship.delivereddate)  events.push({ date: ship.delivereddate,  status: "Delivered" });
-    }
-    if (events.length === 0) {
-      const fallbackDate =
-        ship?.updated_date ||
-        order?.createdDate ||
-        null;
-      const fallbackStatus =
-        ship?.status || order?.status || data?.responseMessage || "Shipment created";
-      events.push({
-        date: fallbackDate,
-        status: fallbackStatus,
-        remarks: "Tracking will appear once the courier shares the first scan."
-      });
-    }
-    events.sort((a,b)=> new Date(b.date || 0) - new Date(a.date || 0));
-
-    // Items
-    const items = (ship?.items || []).map(it => ({
-      sku: it.sku || it.itemCode || null,
-      name: it.itemName || null,
-      qty:  it.order_qty || it.deliveryQty || it.shippedQty || null,
-      price: it.price || null,
-      imageUrl: it.imageUrl || null
-    }));
-
-    const normalized = {
-      mode: "v1/shipmentDetail",
-      orderNumber,
-      status: order?.status || ship?.status || data?.responseMessage || "Unknown",
-      courier: ship?.transporter || ship?.obExtTransporterName || null,
-      trackingNumber: ship?.tracking_number || null,
-      trackingUrl: ship?.tracking_url || null,
-      eta: ship?.expdeldate_max || ship?.expdeldate_min || null,
-      events,
-      items,
-      _raw: data // keep while testing; remove later if you prefer
+    // Helper to call and parse JSON safely
+    const call = async (payload) => {
+      const r = await fetch(URL, { method: "POST", headers, body: JSON.stringify(payload) });
+      const t = await r.text();
+      let j; try { j = JSON.parse(t); } catch { j = { raw: t }; }
+      return { ok: r.ok, status: r.status, json: j, sent: payload };
     };
 
+    // Try the common payload shapes for statusUpdate (based on various tenant specs)
+    const payloads = [
+      { kind: "orderNo",    body: { orderNo: orderNumber } },
+      { kind: "order_no[]", body: { order_no: [orderNumber] } },
+      { kind: "request[]",  body: { request: [ { orderNo: orderNumber } ] } }
+    ];
+
+    const attempts = [];
+    let success = null;
+
+    for (const p of payloads) {
+      const resp = await call(p.body);
+      attempts.push({
+        kind: p.kind,
+        http: resp.status,
+        responseCode: resp.json?.responseCode,
+        responseMessage: resp.json?.responseMessage
+      });
+      // Viniculum success: top-level responseCode === 0
+      if (resp.ok && Number(resp.json?.responseCode) === 0) {
+        success = resp.json;
+        break;
+      }
+    }
+
+    if (!success) {
+      return res.status(400).json({
+        error: "Upstream rejected or no matching payload shape succeeded.",
+        tried: attempts,
+        endpoint: URL
+      });
+    }
+
+    // ---- Normalize your provided sample shape ----
+    // Sample:
+    // {
+    //   "responseCode": 0,
+    //   "responseMessage": "Success",
+    //   "response": [
+    //     { "responseCode": 0, "responseMessage": "SUCCESS", "orderNo": "NWB110755", "invoiceNo": "", "orderStatus": "" }
+    //   ]
+    // }
+    const line = Array.isArray(success?.response) && success.response.length ? success.response[0] : null;
+
+    const normalized = {
+      mode: "v1/statusUpdate",
+      orderNumber: line?.orderNo || orderNumber,
+      invoiceNo: line?.invoiceNo || null,
+      status: line?.orderStatus || success?.responseMessage || "Unknown",
+      events: []
+    };
+
+    // Build a minimal timeline: if orderStatus is present, add it as the latest event
+    if (line?.orderStatus) {
+      normalized.events.push({ status: line.orderStatus, date: null });
+    } else {
+      // Friendly fallback so UI never looks empty
+      normalized.events.push({
+        status: success?.responseMessage || "Status received",
+        date: null,
+        remarks: "Detailed courier scans may appear on shipment detail endpoints."
+      });
+    }
+
+    // include raw for debugging while you test
+    normalized._raw = success;
+
     return res.status(200).json(normalized);
+
   } catch (e) {
     return res.status(500).json({ error: e?.message || "Server error" });
   }
