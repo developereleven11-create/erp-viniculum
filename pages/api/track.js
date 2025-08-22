@@ -1,20 +1,19 @@
 // pages/api/track.js
 // Accepts:
-//   POST JSON: { "orderNumber": "NWB110755" }
-//   GET:       ?orderNumber=NWB110755
+//  - POST JSON: { "orderNumber": "2025437433" }   ← preferred
+//  - GET  query: ?orderNumber=2025437433
 //
-// Env vars (Vercel → Project → Settings → Environment Variables):
-//   VINICULUM_API_KEY      (required)
-//   VINICULUM_API_OWNER    (required; e.g., "Suraj")
-//   VINICULUM_ORG_ID       (optional)
-//   VINICULUM_CLIENT_CODE  (optional)
+// Tenant base: pokonut.vineretail.com
+// Primary endpoint: /v1/order/statusUpdate (order number)
+// Fallback:         /v1/order/shipmentDetail (order number)
 
-const STATUS_UPDATE_URL   = "https://pokonut.vineretail.com/RestWS/api/eretail/v1/order/statusUpdate";
-const SHIPMENT_DETAIL_URL = "https://pokonut.vineretail.com/RestWS/api/eretail/v1/order/shipmentDetail";
+const BASE = "https://pokonut.vineretail.com/RestWS/api/eretail";
+const STATUS_UPDATE_URL   = `${BASE}/v1/order/statusUpdate`;
+const SHIPMENT_DETAIL_URL = `${BASE}/v1/order/shipmentDetail`;
 
 export default async function handler(req, res) {
   try {
-    if (!["POST","GET"].includes(req.method)) {
+    if (!["POST", "GET"].includes(req.method)) {
       res.setHeader("Allow", "POST, GET");
       return res.status(405).json({ error: "Use POST or GET." });
     }
@@ -29,17 +28,18 @@ export default async function handler(req, res) {
     if (!orderNumber) {
       return res.status(400).json({
         error: "Missing 'orderNumber' (string).",
-        hint: "Send { orderNumber: 'NWB110755' } or use ?orderNumber=NWB110755"
+        hint: "Send { orderNumber: '2025437433' } in POST JSON, or use ?orderNumber=2025437433"
       });
     }
 
-    const apiKey     = process.env.VINICULUM_API_KEY;
-    const apiOwner   = process.env.VINICULUM_API_OWNER;
-    const orgId      = process.env.VINICULUM_ORG_ID;
-    const clientCode = process.env.VINICULUM_CLIENT_CODE;
+    const apiKey   = process.env.VINICULUM_API_KEY;
+    const apiOwner = process.env.VINICULUM_API_OWNER || "Suraj";
+    const orgId    = process.env.VINICULUM_ORG_ID || "POKO";
 
-    if (!apiKey || !apiOwner) {
-      return res.status(500).json({ error: "Server not configured. Missing VINICULUM_API_KEY or VINICULUM_API_OWNER." });
+    if (!apiKey || !apiOwner || !orgId) {
+      return res.status(500).json({
+        error: "Server not configured. Missing one of VINICULUM_API_KEY / VINICULUM_API_OWNER / VINICULUM_ORG_ID."
+      });
     }
 
     const headers = {
@@ -47,83 +47,70 @@ export default async function handler(req, res) {
       "Content-Type": "application/json",
       ApiKey: apiKey,
       ApiOwner: apiOwner,
-      ...(orgId ? { OrgId: orgId } : {}),
-      ...(clientCode ? { ClientCode: clientCode } : {}),
+      OrgId: orgId
     };
 
-    // Helper to call endpoint and parse JSON
-    const call = async (url, payload, label) => {
+    // Helper
+    const call = async (url, payload) => {
       const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload) });
       const t = await r.text();
       let j; try { j = JSON.parse(t); } catch { j = { raw: t }; }
-      return { http: r.status, ok: r.ok, json: j, sent: payload, label };
+      return { http: r.status, ok: r.ok, json: j, sent: payload, url };
     };
     const isVinSuccess = d => typeof d?.responseCode === "number" ? d.responseCode === 0 : true;
 
-    // ---- Try MANY statusUpdate shapes (tenants vary) ----
-    const statusPayloads = [
-      { label: "orderNo",            body: { orderNo: orderNumber } },
-      { label: "order_no[]",         body: { order_no: [orderNumber] } },
-      { label: "request[orderNo]",   body: { request: [ { orderNo: orderNumber } ] } },
-      { label: "request[order_no]",  body: { request: [ { order_no: orderNumber } ] } },
-      // some tenants require a wrapper + status placeholder
-      { label: "request[orderNo,status]",  body: { request: [ { orderNo: orderNumber, status: "" } ] } },
-      // occasionally a minimal paging scaffold is required (copy from v2 style)
-      { label: "with paging fields", body: { order_no: [orderNumber], date_from: "", date_to: "", order_location: "", pageNumber: "", filterBy: 1 } },
+    // 1) Try statusUpdate with EXACT body per your spec
+    const suPayloads = [
+      { label: "statusUpdate: orderNo", body: { orderNo: orderNumber } },
+      // If tenant expects array form, uncomment next line:
+      // { label: "statusUpdate: order_no[]", body: { order_no: [orderNumber] } },
+      // If tenant expects wrapper, uncomment next line:
+      // { label: "statusUpdate: request[]", body: { request: [{ orderNo: orderNumber }] } },
     ];
 
     const attempts = [];
-    let success = null;
+    let successMode = null;
+    let successData = null;
 
-    for (const p of statusPayloads) {
-      const r = await call(STATUS_UPDATE_URL, p.body, p.label);
-      attempts.push({
-        endpoint: "v1/statusUpdate",
-        shape: p.label,
-        http: r.http,
-        responseCode: r.json?.responseCode,
-        responseMessage: r.json?.responseMessage
-      });
+    for (const p of suPayloads) {
+      const r = await call(STATUS_UPDATE_URL, p.body);
+      attempts.push({ endpoint: p.label, http: r.http, responseCode: r.json?.responseCode, responseMessage: r.json?.responseMessage });
       if (r.ok && isVinSuccess(r.json)) {
-        success = { mode: "statusUpdate", data: r.json };
+        successMode = "statusUpdate";
+        successData = r.json;
         break;
       }
     }
 
-    // If none of the statusUpdate shapes worked, fall back to shipmentDetail so you still get data
-    if (!success) {
-      const r = await call(SHIPMENT_DETAIL_URL, { orderNo: orderNumber }, "shipmentDetail");
-      attempts.push({
-        endpoint: "v1/shipmentDetail",
-        shape: "orderNo",
-        http: r.http,
-        responseCode: r.json?.responseCode,
-        responseMessage: r.json?.responseMessage
-      });
+    // 2) Fallback to shipmentDetail if statusUpdate didn’t return success
+    if (!successMode) {
+      const r = await call(SHIPMENT_DETAIL_URL, { orderNo: orderNumber });
+      attempts.push({ endpoint: "shipmentDetail: orderNo", http: r.http, responseCode: r.json?.responseCode, responseMessage: r.json?.responseMessage });
       if (r.ok && isVinSuccess(r.json)) {
-        success = { mode: "shipmentDetail", data: r.json };
+        successMode = "shipmentDetail";
+        successData = r.json;
       }
     }
 
-    if (!success) {
+    if (!successMode) {
       return res.status(400).json({
-        error: "Upstream rejected or no matching payload shape succeeded.",
-        endpoint: STATUS_UPDATE_URL,
-        fallback: SHIPMENT_DETAIL_URL,
+        error: "Upstream rejected or no matching payload succeeded.",
+        orderNumber,
         tried: attempts
       });
     }
 
-    // ---- Normalize both shapes into a simple object ----
-    if (success.mode === "statusUpdate") {
-      // Your sample:
+    // -------- Normalize both shapes --------
+
+    if (successMode === "statusUpdate") {
+      // Expected sample:
       // {
-      //   responseCode: 0,
-      //   responseMessage: "Success",
-      //   response: [{ responseCode: 0, responseMessage: "SUCCESS", orderNo: "NWB110755", invoiceNo: "", orderStatus: "" }]
+      //   "responseCode": 0, "responseMessage": "Success",
+      //   "response": [{ "responseCode": 0, "responseMessage": "SUCCESS", "orderNo": "NWB110755", "invoiceNo": "", "orderStatus": "" }]
       // }
-      const resp = success.data;
+      const resp = successData;
       const line = Array.isArray(resp?.response) && resp.response.length ? resp.response[0] : null;
+
       const normalized = {
         mode: "v1/statusUpdate",
         orderNumber: line?.orderNo || orderNumber,
@@ -131,17 +118,19 @@ export default async function handler(req, res) {
         status: line?.orderStatus || resp?.responseMessage || line?.responseMessage || "Unknown",
         events: []
       };
+
       if (line?.orderStatus) {
         normalized.events.push({ status: line.orderStatus, date: null });
       } else {
-        normalized.events.push({ status: "Status received", date: null, remarks: "No detailed timeline provided by statusUpdate." });
+        normalized.events.push({ status: "Status received", date: null, remarks: "No detailed timeline in statusUpdate." });
       }
       normalized._raw = resp;
       return res.status(200).json(normalized);
     }
 
-    if (success.mode === "shipmentDetail") {
-      const resp = success.data;
+    if (successMode === "shipmentDetail") {
+      // Rich shipment detail shape (orders[].shipDetail[]…)
+      const resp  = successData;
       const order = Array.isArray(resp?.orders) && resp.orders.length ? resp.orders[0] : null;
       const ship  = order && Array.isArray(order.shipDetail) && order.shipDetail.length ? order.shipDetail[0] : null;
 
@@ -182,7 +171,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Should never reach here
     return res.status(500).json({ error: "Unexpected state" });
   } catch (e) {
     return res.status(500).json({ error: e?.message || "Server error" });
