@@ -1,18 +1,40 @@
 // pages/api/track.js
-// POST body (from your frontend): { "deliveryNo": "WH2766812322" }
+// Accepts:
+//  - POST JSON: { "deliveryNo": "WH...", ... }  ← preferred
+//  - POST JSON: { "orderNumber": "..." }        ← backward-compatible
+//  - GET  query: ?deliveryNo=WH... or ?orderNumber=...
+//
+// Env vars in Vercel (Project → Settings → Environment Variables):
+//  VINICULUM_API_KEY
+//  VINICULUM_API_OWNER           (e.g., "Suraj")
+//  VINICULUM_ORG_ID              (optional if your tenant requires it)
+//  VINICULUM_CLIENT_CODE         (optional if your tenant requires it)
 
 const URL = "https://pokonut.vineretail.com/RestWS/api/eretail/v1/order/orderShip";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Use POST." });
-  }
-
   try {
-    const { deliveryNo } = req.body || {};
-    if (!deliveryNo || typeof deliveryNo !== "string") {
-      return res.status(400).json({ error: "Missing 'deliveryNo' (string)" });
+    // Accept both POST and GET for convenience
+    if (req.method !== "POST" && req.method !== "GET") {
+      res.setHeader("Allow", "POST, GET");
+      return res.status(405).json({ error: "Use POST or GET." });
+    }
+
+    // Pull input from body or query; prefer deliveryNo if provided
+    const body = (req.method === "POST" ? (req.body || {}) : {});
+    const q = req.query || {};
+    const deliveryNo =
+      (typeof body.deliveryNo === "string" && body.deliveryNo.trim()) ||
+      (typeof body.orderNumber === "string" && body.orderNumber.trim()) ||
+      (typeof q.deliveryNo === "string" && q.deliveryNo.trim()) ||
+      (typeof q.orderNumber === "string" && q.orderNumber.trim()) ||
+      "";
+
+    if (!deliveryNo) {
+      return res.status(400).json({
+        error: "Missing 'deliveryNo' (string).",
+        hint: "Send { deliveryNo: 'WH2766812322' } in POST JSON, or ?deliveryNo=WH2766812322 as a query param."
+      });
     }
 
     const apiKey     = process.env.VINICULUM_API_KEY;
@@ -21,49 +43,53 @@ export default async function handler(req, res) {
     const clientCode = process.env.VINICULUM_CLIENT_CODE;
 
     if (!apiKey || !apiOwner) {
-      return res.status(500).json({ error: "Missing VINICULUM_API_KEY or VINICULUM_API_OWNER" });
+      return res.status(500).json({ error: "Server not configured. Missing VINICULUM_API_KEY or VINICULUM_API_OWNER." });
     }
 
     const headers = {
-      "accept": "application/json",
+      accept: "application/json",
       "Content-Type": "application/json",
-      "ApiKey": apiKey,
-      "ApiOwner": apiOwner,
-      ...(orgId ? { "OrgId": orgId } : {}),
-      ...(clientCode ? { "ClientCode": clientCode } : {})
+      ApiKey: apiKey,
+      ApiOwner: apiOwner,
+      ...(orgId ? { OrgId: orgId } : {}),
+      ...(clientCode ? { ClientCode: clientCode } : {})
     };
 
-    const body = {
+    // EXACT body shape Vin-eRetail expects for this endpoint:
+    const payload = {
       request: [
-        {
-          deliveryNo
-        }
+        { deliveryNo }
       ]
     };
 
     const upstream = await fetch(URL, {
       method: "POST",
       headers,
-      body: JSON.stringify(body)
+      body: JSON.stringify(payload)
     });
 
     const raw = await upstream.text();
-    let json;
-    try { json = JSON.parse(raw); } catch { json = { raw }; }
+    let data;
+    try { data = JSON.parse(raw); } catch { data = { raw }; }
 
     if (!upstream.ok) {
-      return res.status(upstream.status).json({ error: "Upstream HTTP error", details: json });
+      return res.status(upstream.status).json({ error: "Upstream HTTP error", details: data });
     }
 
-    if (typeof json.responseCode !== "undefined" && Number(json.responseCode) !== 0) {
+    // Vin-eRetail usually uses responseCode===0 for success
+    if (typeof data.responseCode !== "undefined" && Number(data.responseCode) !== 0) {
       return res.status(400).json({
-        error: json?.responseMessage || "Rejected by Viniculum",
-        details: json
+        error: data?.responseMessage || "Vin-eRetail rejected the request",
+        details: data
       });
     }
 
-    return res.status(200).json(json);
+    // You can return raw or normalize. For now, return as-is plus echo.
+    return res.status(200).json({
+      deliveryNo,
+      ...data
+    });
   } catch (e) {
-    return res.status(500).json({ error: e.message || "Server error" });
+    return res.status(500).json({ error: e?.message || "Server error" });
   }
 }
