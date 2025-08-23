@@ -5,14 +5,23 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // Apply to all routes
         source: "/:path*",
         headers: [
-          // Let your Shopify storefront frame this app
+          // Allow Shopify to frame this site (storefront + theme editor).
+          // Add your custom domain too if you embed from there.
           {
             key: "Content-Security-Policy",
-            value: "frame-ancestors 'self' https://pokonut.com",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob:",
+              "connect-src 'self'",
+              "frame-ancestors 'self' https://pokonut.myshopify.com https://admin.shopify.com https://www.pokonut.com https://pokonut.com"
+            ].join("; ")
           },
-          // optional but fine to keep
+          // Optional/harmless
           { key: "Referrer-Policy", value: "no-referrer-when-downgrade" },
         ],
       },
@@ -21,3 +30,4 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+
