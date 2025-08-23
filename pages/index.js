@@ -89,7 +89,7 @@ export default function OrderTrackerPage() {
               <div className="summary-header">
                 <div>
                   <div className="summary-title">Order</div>
-                  <div className=\"summary-value\">{(data?.requestedOrders?.[0]) || "—"}</div>
+                  <div className="summary-value">{(data?.requestedOrders?.[0]) || "—"}</div>
                 <StatusBadge status={primary?.status} />
               </div>
               </div>
