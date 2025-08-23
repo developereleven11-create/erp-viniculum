@@ -155,7 +155,7 @@ export default function OrderTrackerPage() {
                 <ol className="timeline">
                   {primary.events.map((ev, idx) => (
                     <li key={idx} className="tl-item">
-                      <div className="dot" />
+                      <div className={`dot ${statusTone(ev.status)}`} />
                       <div className="content">
                         <div className="row">
                           <span className="label">{ev.status || "Update"}</span>
@@ -185,27 +185,24 @@ export default function OrderTrackerPage() {
           --card: #ffffff;
           --muted: #555;
           --text: #111;
-          --accent: #2563eb;
-          --success: #22c55e;
-          --warn: #f59e0b;
-          --danger: #ef4444;
+          --accent: #111111;
           --border: #e5e7eb;
         }
         .page { min-height: 100vh; background: var(--bg); color: var(--text); }
         .container { max-width: 960px; margin: 0 auto; padding: 32px 20px 60px; }
-        .title { font-size: 32px; font-weight: 800; letter-spacing: 0.2px; }
+        .title { font-size: 32px; font-weight: 800; }
         .subtitle { color: var(--muted); margin: 6px 0 20px; }
 
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
-        .form { position: sticky; top: 0; z-index: 2; backdrop-filter: blur(6px); margin-bottom: 16px; }
+        .form { margin-bottom: 20px; }
         .field-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
         .field label { display:block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
         .field input { width: 100%; background: #fff; color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; outline: none; }
-        .actions button, .btn { background: var(--accent); color: #fff; border: none; border-radius: 12px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
+        .actions button, .btn { background: #111; color: #fff; border: none; border-radius: 12px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
         .actions button[disabled] { opacity: .7; cursor: default; }
-        .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
-        .btn.ghost { background: transparent; color: #374151; border: 1px solid var(--border); }
-        .error { color: var(--danger); margin-top: 10px; }
+        .btn.secondary { background: #fff; color: #111; border: 1px solid #111; }
+        .btn.ghost { background: transparent; color: #555; border: 1px solid var(--border); }
+        .error { color: red; margin-top: 10px; }
 
         .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
         @media (min-width: 900px) { .grid { grid-template-columns: 1.2fr 1fr; } }
@@ -234,9 +231,13 @@ export default function OrderTrackerPage() {
 
         .timeline { list-style: none; margin: 0; padding: 0 0 0 22px; position: relative; }
         .timeline::before { content: ""; position: absolute; left: 9px; top: 0; bottom: 0; width: 3px; background: #16a34a; }
-        .tl-item { position: relative; margin: 0 0 16px; }
+        .tl-item { position: relative; margin: 0 0 20px; }
         .tl-item:last-child { margin-bottom: 0; }
-        .dot { position: absolute; left: -2px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.18); border: 2px solid #ffffff; }
+        .dot { position: absolute; left: -2px; top: 4px; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; }
+        .dot.shipped { background: #f59e0b; }
+        .dot.intransit { background: #2563eb; }
+        .dot.delivered { background: #16a34a; }
+        .dot.pending { background: #9ca3af; }
         .content { background: #f9fafb; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
         .row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
         .label { font-weight: 800; }
