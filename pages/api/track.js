@@ -1,7 +1,9 @@
 // pages/api/track.js
-// Endpoint: /RestWS/api/eretail/v1/order/shipmentDetail (Case 1 - by order number(s))
-// Adds: currentStatus (prefers ship.status/transporterstatus), product names & amounts,
-//       courier-scan event using transporterstatus + updated_date.
+// Viniculum: /RestWS/api/eretail/v1/order/shipmentDetail (Case 1 - by order number(s))
+// Returns: status, courier, AWB, ETA, products (with amounts), and a timeline.
+
+const BASE = "https://pokonut.vineretail.com/RestWS/api/eretail";
+const SHIPMENT_DETAIL_URL = `${BASE}/v1/order/shipmentDetail`;
 
 export default async function handler(req, res) {
   // --- CORS for Shopify page ---
@@ -11,20 +13,18 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
-  // ...rest of your existing code...
-}
-const BASE = "https://pokonut.vineretail.com/RestWS/api/eretail";
-const SHIPMENT_DETAIL_URL = `${BASE}/v1/order/shipmentDetail`;
 
-export default async function handler(req, res) {
   try {
     if (!["POST", "GET"].includes(req.method)) {
-      res.setHeader("Allow", "POST, GET");
+      res.setHeader("Allow", "POST, GET, OPTIONS");
       return res.status(405).json({ error: "Use POST or GET." });
     }
 
-    // --- Read inputs ---
-    const body = req.method === "POST" ? (req.body || {}) : {};
+    // --- Read inputs (accept GET or POST) ---
+    let body = req.method === "POST" ? (req.body ?? {}) : {};
+    if (typeof body === "string") {
+      try { body = JSON.parse(body); } catch { body = {}; }
+    }
     const q = req.query || {};
 
     let orderNumbers = [];
@@ -50,7 +50,7 @@ export default async function handler(req, res) {
     const apiOwner = process.env.VINICULUM_API_OWNER; // "Suraj"
     const orgId    = process.env.VINICULUM_ORG_ID;    // "POKO"
     if (!apiKey || !apiOwner || !orgId) {
-      return res.status(500).json({ error: "Missing VINICULUM_API_KEY / _API_OWNER / _ORG_ID" });
+      return res.status(500).json({ error: "Missing VINICULUM_API_KEY / VINICULUM_API_OWNER / VINICULUM_ORG_ID" });
     }
 
     const headers = {
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
       OrgId: orgId
     };
 
-    // --- Payload exactly like Swagger Case 1 (by order numbers) ---
+    // --- Payload (by order numbers) ---
     const payload = {
       order_no: orderNumbers,
       date_from: "",
@@ -193,7 +193,6 @@ export default async function handler(req, res) {
         orderNo: order.orderNo || order.order_no || null,
         orderLocation: order.orderLocation || null,
         channelName: order.channelName || null,
-        // “currentStatus” prioritizes the shipment block status
         currentStatus: primary.status || normalizeStatus(order.status) || "Unknown",
         courier: primary.courier || null,
         trackingNumber: primary.trackingNumber || null,
@@ -201,29 +200,28 @@ export default async function handler(req, res) {
         etaMin: primary.etaMin || null,
         etaMax: primary.etaMax || null,
         productNames: (primary.items || []).map(i => i.name).filter(Boolean),
-        products: primary.items || [],     // detailed: name, qty, unitPrice, lineTotal
+        products: primary.items || [],
         shipments,
         raw: order
       };
     });
 
-    // Convenience top-level (first order for your current UI)
     const first = normalizedOrders[0] || {};
 
     return res.status(200).json({
       mode: "v1/shipmentDetail (Case 1)",
       requestedOrders: orderNumbers,
       orderLocation: orderLocation || first.orderLocation || null,
-      status: first.currentStatus || "Unknown",            // ← show this on the card
+      status: first.currentStatus || "Unknown",
       courier: first.courier || null,
       trackingNumber: first.trackingNumber || null,
       trackingUrl: first.trackingUrl || null,
       etaMin: first.etaMin || null,
       etaMax: first.etaMax || null,
-      productNames: first.productNames || [],              // quick list of names
-      products: first.products || [],                      // detailed lines with amounts
-      events: (first.shipments?.[0]?.events) || [],        // timeline (includes courier scan)
-      orders: normalizedOrders,                            // all orders
+      productNames: first.productNames || [],
+      products: first.products || [],
+      events: (first.shipments?.[0]?.events) || [],
+      orders: normalizedOrders,
       _raw: data,
       _sent: payload
     });
