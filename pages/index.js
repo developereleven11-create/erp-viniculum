@@ -89,9 +89,9 @@ export default function OrderTrackerPage() {
               <div className="summary-header">
                 <div>
                   <div className="summary-title">Order</div>
-                  <div className="summary-value">{(data?.requestedOrders?.[0]) || "—"}</div>
-                </div>
+                  <div className=\"summary-value\">{(data?.requestedOrders?.[0]) || "—"}</div>
                 <StatusBadge status={primary?.status} />
+              </div>
               </div>
 
               <div className="info-grid">
@@ -207,9 +207,9 @@ export default function OrderTrackerPage() {
         .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
         @media (min-width: 900px) { .grid { grid-template-columns: 1.2fr 1fr; } }
 
-        .summary-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .summary-header { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; margin-bottom: 10px; }
         .summary-title { font-size: 12px; color: var(--muted); }
-        .summary-value { font-size: 24px; font-weight: 800; }
+        .summary-value { font-size: 24px; font-weight: 800; line-height: 1.2; word-break: break-word; }
 
         .info-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 10px; }
         .info { background: #f9fafb; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
@@ -244,7 +244,7 @@ export default function OrderTrackerPage() {
         .date { font-size: 12px; color: var(--muted); }
         .remarks { margin-top: 6px; color: var(--muted); }
 
-        .badge { padding: 6px 10px; border-radius: 999px; font-weight: 800; font-size: 12px; border: 1px solid var(--border); }
+        .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; font-weight: 800; font-size: 12px; border: 1px solid var(--border); white-space: nowrap; }
         .badge.shipped { background: #fef3c7; color: #92400e; border-color: #fde68a; }
         .badge.intransit { background: #dbeafe; color: #1e3a8a; border-color: #bfdbfe; }
         .badge.delivered { background: #dcfce7; color: #14532d; border-color: #86efac; }
