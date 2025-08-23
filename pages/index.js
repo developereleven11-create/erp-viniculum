@@ -36,7 +36,6 @@ export default function OrderTrackerPage() {
 
   const primary = useMemo(() => {
     if (!data) return null;
-    // data.orders[0] contains rich details too, but we normalized at top-level
     return {
       status: data.status,
       courier: data.courier,
@@ -86,7 +85,6 @@ export default function OrderTrackerPage() {
 
         {data && (
           <div className="grid">
-            {/* Summary Card */}
             <section className="card summary">
               <div className="summary-header">
                 <div>
@@ -115,7 +113,6 @@ export default function OrderTrackerPage() {
               </div>
             </section>
 
-            {/* Products */}
             <section className="card">
               <h3 className="section-title">Items</h3>
               {(!primary?.products?.length) ? (
@@ -150,7 +147,6 @@ export default function OrderTrackerPage() {
               )}
             </section>
 
-            {/* Timeline */}
             <section className="card">
               <h3 className="section-title">Timeline</h3>
               {(!primary?.events?.length) ? (
@@ -173,7 +169,6 @@ export default function OrderTrackerPage() {
               )}
             </section>
 
-            {/* Raw JSON (debug) */}
             {showRaw && (
               <section className="card">
                 <h3 className="section-title">Raw response</h3>
@@ -186,29 +181,27 @@ export default function OrderTrackerPage() {
 
       <style jsx>{`
         :root {
-          --bg: #0b0c10;
-          --card: #111318;
-          --muted: #8a94a7;
-          --text: #e6e9ef;
-          --accent: #6aa6ff;
+          --bg: #ffffff;
+          --card: #ffffff;
+          --muted: #555;
+          --text: #111;
+          --accent: #2563eb;
           --success: #22c55e;
           --warn: #f59e0b;
           --danger: #ef4444;
-          --border: #1e2230;
+          --border: #e5e7eb;
         }
-        .page { min-height: 100vh; background: linear-gradient(180deg, #0b0c10, #10131a); color: var(--text); }
+        .page { min-height: 100vh; background: var(--bg); color: var(--text); }
         .container { max-width: 960px; margin: 0 auto; padding: 32px 20px 60px; }
         .title { font-size: 32px; font-weight: 800; letter-spacing: 0.2px; }
         .subtitle { color: var(--muted); margin: 6px 0 20px; }
 
-        .card { background: var(--card);
-                border: 1px solid var(--border);
-                border-radius: 16px; padding: 18px 20px; box-shadow: 0 10px 24px rgba(0,0,0,.25); }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
         .form { position: sticky; top: 0; z-index: 2; backdrop-filter: blur(6px); margin-bottom: 16px; }
         .field-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
         .field label { display:block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-        .field input { width: 100%; background: #0e1016; color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; outline: none; }
-        .actions button, .btn { background: var(--accent); color: #06080e; border: none; border-radius: 12px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
+        .field input { width: 100%; background: #fff; color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; outline: none; }
+        .actions button, .btn { background: var(--accent); color: #fff; border: none; border-radius: 12px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
         .actions button[disabled] { opacity: .7; cursor: default; }
         .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
         .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
@@ -222,7 +215,7 @@ export default function OrderTrackerPage() {
         .summary-value { font-size: 24px; font-weight: 800; }
 
         .info-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-top: 10px; }
-        .info { background: #0e1016; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+        .info { background: #f9fafb; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
         .info .label { color: var(--muted); font-size: 12px; }
         .info .value { font-weight: 700; margin-top: 2px; word-break: break-all; }
 
@@ -240,22 +233,22 @@ export default function OrderTrackerPage() {
         .prod-info .sku { color: var(--muted); font-size: 12px; }
 
         .timeline { list-style: none; margin: 0; padding: 0 0 0 22px; position: relative; }
-        .timeline::before { content: ""; position: absolute; left: 9px; top: 0; bottom: 0; width: 2px; background: #1a1f2b; }
+        .timeline::before { content: ""; position: absolute; left: 9px; top: 0; bottom: 0; width: 2px; background: var(--border); }
         .tl-item { position: relative; margin: 0 0 16px; }
         .tl-item:last-child { margin-bottom: 0; }
-        .dot { position: absolute; left: -2px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(106,166,255,.15); }
-        .content { background: #0e1016; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+        .dot { position: absolute; left: -2px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+        .content { background: #f9fafb; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
         .row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
         .label { font-weight: 800; }
         .date { font-size: 12px; color: var(--muted); }
         .remarks { margin-top: 6px; color: var(--muted); }
 
         .badge { padding: 6px 10px; border-radius: 999px; font-weight: 800; font-size: 12px; border: 1px solid var(--border); }
-        .badge.shipped { background: rgba(34,197,94,.12); color: #86efac; border-color: rgba(34,197,94,.25); }
-        .badge.intransit { background: rgba(106,166,255,.12); color: #c7ddff; border-color: rgba(106,166,255,.25); }
-        .badge.delivered { background: rgba(34,197,94,.18); color: #bbf7d0; border-color: rgba(34,197,94,.35); }
-        .badge.pending { background: rgba(229,231,235,.08); color: #e5e7eb; }
-        .pre { white-space: pre-wrap; word-break: break-word; background: #0e1016; border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+        .badge.shipped { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+        .badge.intransit { background: #dbeafe; color: #1e3a8a; border-color: #bfdbfe; }
+        .badge.delivered { background: #bbf7d0; color: #166534; border-color: #86efac; }
+        .badge.pending { background: #f3f4f6; color: #374151; }
+        .pre { white-space: pre-wrap; word-break: break-word; background: #f9fafb; border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
       `}</style>
     </div>
   );
@@ -312,7 +305,6 @@ function formatEta(min, max) {
 
 function formatDate(raw) {
   if (!raw) return "—";
-  // Expecting formats like "21/08/2025 14:07:09"; display as DD MMM, HH:mm
   try {
     const [d, t] = String(raw).split(" ");
     const [dd, mm, yyyy] = d.split("/").map(Number);
