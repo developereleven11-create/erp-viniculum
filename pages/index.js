@@ -204,7 +204,7 @@ export default function OrderTrackerPage() {
         .actions button, .btn { background: var(--accent); color: #fff; border: none; border-radius: 12px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
         .actions button[disabled] { opacity: .7; cursor: default; }
         .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
-        .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+        .btn.ghost { background: transparent; color: #374151; border: 1px solid var(--border); }
         .error { color: var(--danger); margin-top: 10px; }
 
         .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
@@ -233,10 +233,10 @@ export default function OrderTrackerPage() {
         .prod-info .sku { color: var(--muted); font-size: 12px; }
 
         .timeline { list-style: none; margin: 0; padding: 0 0 0 22px; position: relative; }
-        .timeline::before { content: ""; position: absolute; left: 9px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+        .timeline::before { content: ""; position: absolute; left: 9px; top: 0; bottom: 0; width: 3px; background: #16a34a; }
         .tl-item { position: relative; margin: 0 0 16px; }
         .tl-item:last-child { margin-bottom: 0; }
-        .dot { position: absolute; left: -2px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+        .dot { position: absolute; left: -2px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.18); border: 2px solid #ffffff; }
         .content { background: #f9fafb; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
         .row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
         .label { font-weight: 800; }
@@ -244,10 +244,10 @@ export default function OrderTrackerPage() {
         .remarks { margin-top: 6px; color: var(--muted); }
 
         .badge { padding: 6px 10px; border-radius: 999px; font-weight: 800; font-size: 12px; border: 1px solid var(--border); }
-        .badge.shipped { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+        .badge.shipped { background: #fef3c7; color: #92400e; border-color: #fde68a; }
         .badge.intransit { background: #dbeafe; color: #1e3a8a; border-color: #bfdbfe; }
-        .badge.delivered { background: #bbf7d0; color: #166534; border-color: #86efac; }
-        .badge.pending { background: #f3f4f6; color: #374151; }
+        .badge.delivered { background: #dcfce7; color: #14532d; border-color: #86efac; }
+        .badge.pending { background: #f3f4f6; color: #374151; border-color: #e5e7eb; }
         .pre { white-space: pre-wrap; word-break: break-word; background: #f9fafb; border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
       `}</style>
     </div>
