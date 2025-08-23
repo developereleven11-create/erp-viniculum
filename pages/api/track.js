@@ -3,6 +3,16 @@
 // Adds: currentStatus (prefers ship.status/transporterstatus), product names & amounts,
 //       courier-scan event using transporterstatus + updated_date.
 
+export default async function handler(req, res) {
+  // --- CORS for Shopify page ---
+  res.setHeader("Access-Control-Allow-Origin", "https://pokonut.myshopify.com");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  // ...rest of your existing code...
+}
 const BASE = "https://pokonut.vineretail.com/RestWS/api/eretail";
 const SHIPMENT_DETAIL_URL = `${BASE}/v1/order/shipmentDetail`;
 
