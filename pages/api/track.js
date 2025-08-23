@@ -7,7 +7,7 @@ const SHIPMENT_DETAIL_URL = `${BASE}/v1/order/shipmentDetail`;
 
 export default async function handler(req, res) {
   // --- CORS for Shopify page ---
-  res.setHeader("Access-Control-Allow-Origin", "https://pokonut.myshopify.com");
+  res.setHeader("Access-Control-Allow-Origin", "https://pokonut.com");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") {
