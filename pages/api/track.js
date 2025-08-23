@@ -1,8 +1,7 @@
 // pages/api/track.js
 // Endpoint: /RestWS/api/eretail/v1/order/shipmentDetail (Case 1 - by order number(s))
-// Accepts:
-//  - POST JSON: { "orderNumbers": [...], "orderLocation":"IBW" } OR { "orderNumber": "4105939108DC", "orderLocation":"IBW" }
-//  - GET: /api/track?orderNumbers=7F6736867934,4105939108DC&orderLocation=IBW
+// Adds: currentStatus (prefers ship.status/transporterstatus), product names & amounts,
+//       courier-scan event using transporterstatus + updated_date.
 
 const BASE = "https://pokonut.vineretail.com/RestWS/api/eretail";
 const SHIPMENT_DETAIL_URL = `${BASE}/v1/order/shipmentDetail`;
@@ -52,7 +51,7 @@ export default async function handler(req, res) {
       OrgId: orgId
     };
 
-    // --- Build payload exactly like your Swagger Case 1 example ---
+    // --- Payload exactly like Swagger Case 1 (by order numbers) ---
     const payload = {
       order_no: orderNumbers,
       date_from: "",
@@ -64,6 +63,7 @@ export default async function handler(req, res) {
       filterBy: "1"
     };
 
+    // --- Call Viniculum ---
     const upstream = await fetch(SHIPMENT_DETAIL_URL, {
       method: "POST",
       headers,
@@ -90,7 +90,23 @@ export default async function handler(req, res) {
       });
     }
 
-    // ---- Normalize ALL orders & shipments ----
+    // ---- Helpers ----
+    const parseNum = (v) => {
+      if (v === null || v === undefined) return null;
+      const n = Number(String(v).replace(/,/g, ""));
+      return Number.isFinite(n) ? n : null;
+    };
+    const normalizeStatus = (s) => {
+      if (!s) return null;
+      const t = String(s).toLowerCase().replace(/\s+/g, "");
+      if (t === "intransit" || t === "in_transit") return "In Transit";
+      if (t === "shipped") return "Shipped";
+      if (t === "shippedcomplete") return "Shipped complete";
+      if (t === "delivered") return "Delivered";
+      return String(s);
+    };
+
+    // ---- Normalize ALL orders ----
     const orders = Array.isArray(data?.orders) ? data.orders : [];
 
     const normalizedOrders = orders.map((order) => {
@@ -102,25 +118,44 @@ export default async function handler(req, res) {
         const itemsRaw = Array.isArray(s.items) ? s.items
                       : Array.isArray(s.item)  ? s.item
                       : [];
-        const items = itemsRaw.map(it => ({
-          sku: it.sku || it.itemCode || null,
-          name: it.itemName || null,
-          qty:  it.order_qty || it.deliveryQty || it.shippedQty || null,
-          price: it.price || null,
-          imageUrl: it.imageUrl || null
-        }));
 
-        // Build a timeline
+        const items = itemsRaw.map(it => {
+          const qty = parseNum(it.order_qty ?? it.deliveryQty ?? it.shippedQty);
+          const unit = parseNum(it.price);
+          const lineTotal = qty != null && unit != null ? +(qty * unit).toFixed(2) : unit;
+          return {
+            sku: it.sku || it.itemCode || null,
+            name: it.itemName || null,
+            qty,
+            unitPrice: unit,
+            lineTotal,
+            imageUrl: it.imageUrl || null
+          };
+        });
+
+        // Build timeline incl. courier scan event
         const events = [];
         if (s.allocation_date) events.push({ date: s.allocation_date, status: "Allocated" });
         if (s.pick_date)       events.push({ date: s.pick_date,       status: "Picked" });
         if (s.pack_date)       events.push({ date: s.pack_date,       status: "Packed" });
         if (s.shipdate)        events.push({ date: s.shipdate,        status: "Shipped" });
+        if (s.transporterstatus || s.transporterstatusremark || s.updated_date) {
+          const readable =
+            normalizeStatus(s.transporterstatus) ||
+            normalizeStatus(s.status) ||
+            "In Transit";
+          events.push({
+            date: s.updated_date || s.shipdate || null,
+            status: readable,
+            remarks: s.transporterstatusremark || null
+          });
+        }
         if (s.delivereddate)   events.push({ date: s.delivereddate,   status: "Delivered" });
+
         if (events.length === 0) {
           events.push({
             date: s.updated_date || order.createdDate || null,
-            status: s.status || order.status || data?.responseMessage || "Shipment created",
+            status: normalizeStatus(s.status || order.status || data?.responseMessage || "Shipment created"),
             remarks: "Tracking will appear once the courier shares the first scan."
           });
         }
@@ -129,18 +164,18 @@ export default async function handler(req, res) {
         return {
           deliveryNumber: s.deliveryNumber || null,
           fulfillmentLocation: s.fulfillmentLocation || null,
-          courier: s.transporter || s.obExtTransporterName || null,  // ← courier partner
-          trackingNumber: s.tracking_number || null,                 // ← AWB
+          courier: s.transporter || s.obExtTransporterName || null,  // courier partner
+          trackingNumber: s.tracking_number || null,                  // AWB
           trackingUrl: s.tracking_url || null,
-          etaMin: s.expdeldate_min || null,                          // ← ETA (min/max)
+          etaMin: s.expdeldate_min || null,
           etaMax: s.expdeldate_max || null,
-          status: s.status || order.status || null,
+          status: normalizeStatus(s.status || s.transporterstatus || order.status || null),
+          lastScanRemark: s.transporterstatusremark || null,
           events,
-          items,
+          items
         };
       });
 
-      // Convenience: pick first shipment’s quick fields for top-level
       const primary = shipments[0] || {};
 
       return {
@@ -148,13 +183,15 @@ export default async function handler(req, res) {
         orderNo: order.orderNo || order.order_no || null,
         orderLocation: order.orderLocation || null,
         channelName: order.channelName || null,
-        status: order.status || primary.status || data?.responseMessage || "Unknown",
+        // “currentStatus” prioritizes the shipment block status
+        currentStatus: primary.status || normalizeStatus(order.status) || "Unknown",
         courier: primary.courier || null,
         trackingNumber: primary.trackingNumber || null,
         trackingUrl: primary.trackingUrl || null,
         etaMin: primary.etaMin || null,
         etaMax: primary.etaMax || null,
-        productNames: (primary.items || []).map(i => i.name).filter(Boolean), // ← product names
+        productNames: (primary.items || []).map(i => i.name).filter(Boolean),
+        products: primary.items || [],     // detailed: name, qty, unitPrice, lineTotal
         shipments,
         raw: order
       };
@@ -167,14 +204,16 @@ export default async function handler(req, res) {
       mode: "v1/shipmentDetail (Case 1)",
       requestedOrders: orderNumbers,
       orderLocation: orderLocation || first.orderLocation || null,
-      status: first.status || "Unknown",
+      status: first.currentStatus || "Unknown",            // ← show this on the card
       courier: first.courier || null,
       trackingNumber: first.trackingNumber || null,
       trackingUrl: first.trackingUrl || null,
       etaMin: first.etaMin || null,
       etaMax: first.etaMax || null,
-      productNames: first.productNames || [],           // ← surfaced for easy UI use
-      orders: normalizedOrders,                         // full detail for all orders
+      productNames: first.productNames || [],              // quick list of names
+      products: first.products || [],                      // detailed lines with amounts
+      events: (first.shipments?.[0]?.events) || [],        // timeline (includes courier scan)
+      orders: normalizedOrders,                            // all orders
       _raw: data,
       _sent: payload
     });
